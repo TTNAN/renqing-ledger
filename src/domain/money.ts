@@ -129,11 +129,12 @@ export function parseMoneyToCents(raw: string): number | null {
     if (yuan === null) return null;
     const cents = parseJiaoFen(tail);
     if (cents === null) return null;
-    return yuan * 100 + cents;
+    // yuan 可能是浮点（如 19.99），这里收敛成整数分，守住「整数分」铁律
+    return Math.round(yuan * 100) + cents;
   }
 
   const yuan = parseYuanPart(s);
-  return yuan === null ? null : yuan * 100;
+  return yuan === null ? null : Math.round(yuan * 100);
 }
 
 /** 解析「元」部分（整数或小数） */

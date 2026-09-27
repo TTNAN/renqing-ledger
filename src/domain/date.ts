@@ -30,7 +30,15 @@ export function currentYear(now: Date = new Date()): number {
 }
 
 export function isISODate(s: unknown): s is string {
-  return typeof s === 'string' && ISO_RE.test(s);
+  if (typeof s !== 'string' || !ISO_RE.test(s)) return false;
+  // 正则只拦格式，这里再拦掉不存在的日历日期（如 2026-13-99、2023-02-29）
+  const y = Number(s.slice(0, 4));
+  const m = Number(s.slice(5, 7));
+  const d = Number(s.slice(8, 10));
+  if (m < 1 || m > 12 || d < 1) return false;
+  // Date.UTC(y, m, 0) 即 y 年 m 月的最后一天（m=1→1月31日），用 UTC 避开时区陷阱
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return d <= lastDay;
 }
 
 /** 非法日期回退到今天，保证界面永远有值可用 */
@@ -61,16 +69,21 @@ export function monthOf(iso: string): number {
   return Number(String(iso).slice(5, 7));
 }
 
-/** YYYY-MM-DD 是定长字典序，字符串比较即时间先后 */
+/** 'YYYY-MM-DD' 是定长字典序，字符串比较即时间先后；不用 localeCompare，保证各环境结果一致 */
 export function compareISO(a: string, b: string): number {
-  return String(a).localeCompare(String(b));
+  const x = String(a);
+  const y = String(b);
+  return x < y ? -1 : x > y ? 1 : 0;
 }
 
 /** b 相对 a 过了几个整年（用于上浮计算） */
 export function yearsBetween(fromISO: string, toISO: string): number {
   const fy = yearOf(fromISO);
   const ty = yearOf(toISO);
-  return Math.max(0, ty - fy);
+  let years = ty - fy;
+  // 还没到今年的「对应月日」不算满一年：2020-06-01 → 2025-01-01 是 4 年，不是 5 年
+  if (years > 0 && toISO.slice(5) < fromISO.slice(5)) years -= 1;
+  return Math.max(0, years);
 }
 
 export function addYears(iso: string, n: number): string {

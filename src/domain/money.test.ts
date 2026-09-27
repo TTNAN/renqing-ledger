@@ -80,6 +80,24 @@ describe('parseMoneyToCents', () => {
     expect(parseMoneyToCents('   ')).toBeNull();
     expect(parseMoneyToCents('随便写点什么')).toBeNull();
   });
+
+  it('小数输入恒为整数分（浮点回归）', () => {
+    // 这些值曾因 0.07*100 !== 7 的浮点误差返回非整数，破坏「整数分」铁律
+    const cases: Array<[string, number]> = [
+      ['0.07', 7],
+      ['19.99', 1999],
+      ['2.3', 230],
+      ['10.11', 1011],
+      ['0.29', 29],
+      ['19.99元', 1999],
+      ['0.07元', 7],
+    ];
+    for (const [input, expected] of cases) {
+      const got = parseMoneyToCents(input);
+      expect(Number.isInteger(got)).toBe(true);
+      expect(got).toBe(expected);
+    }
+  });
 });
 
 describe('取整', () => {
