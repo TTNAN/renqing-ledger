@@ -1,0 +1,185 @@
+name: 构建 Android APK
+
+# 产出 debug 与 release APK。
+#
+# 签名：
+#   配了 secrets 就打已签名 release 包；
+#   没配就打未签名包（仍然可用，但无法直接安装，仅供检查构建是否通过）。
+#
+# 需要的 secrets（都可选）：
+#   RENQING_KEYSTORE_BASE64    keystore 文件的 base64
+#   RENQING_KEYSTORE_PASSWORD  库口令
+#   RENQING_KEY_ALIAS          别名
+#   RENQING_KEY_PASSWORD       密钥口令
+#
+# 生成 base64 见 docs/android-signing.md 第四节。
+
+on:
+  push:
+    branches: ['**']
+    tags:
+      - 'v*'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    name: Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # 顺序：先 setup-node，再 pnpm/action-setup。
+      # 反过来的话 setup-node 的 cache: pnpm 会执行 `pnpm store path`，
+      # 而那时 node 运行时还没装好，会直接失败。
+      # 也不做依赖缓存 —— 见 test.yml 的说明。
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      # 不用 android-actions/setup-android：它在部分 runner 镜像上
+      # 会因 cmdline-tools 版本不匹配失败。runner 本来就预装了 SDK，
+      # 我们只需要告诉 Gradle「SDK 在哪」。
+      - name: 确认 Android SDK
+        run: |
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          if [ -z "$ANDROID_SDK_ROOT" ]; then
+            echo "runner 未提供 ANDROID_SDK_ROOT，回退到默认安装路径"
+            echo "ANDROID_SDK_ROOT=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
+            echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
+          fi
+          ls "${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}" || true
+
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: 生成图标
+        run: pnpm icons
+
+      - name: 单元测试
+        run: pnpm test
+
+      - name: 构建前端
+        run: pnpm build
+
+      # GitHub Actions 不允许在 if 条件里直接写 secrets ——
+      # 那会让整个工作流解析失败（表现为工作流名显示成文件路径）。
+      # 正确做法是先经 env 传进来，再判断 env。
+      - name: 检查是否配置了签名密钥
+        id: signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RENQING_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "未配置签名密钥，将产出未签名 release 包"
+          fi
+
+      - name: 还原 keystore
+        if: steps.signing.outputs.enabled == 'true'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RENQING_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.RENQING_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.RENQING_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.RENQING_KEY_PASSWORD }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > android/renqing-release.jks
+          cat > android/keystore.properties <<EOF
+          storeFile=renqing-release.jks
+          storePassword=$KEYSTORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          EOF
+
+      # 仓库里已经有 android/ 原生工程了（含手写的 AndroidManifest、
+      # 主题、自适应图标定义）。cap add 遇到已存在的目录会直接报错，
+      # 而且会覆盖手写内容。只需要 sync。
+      - name: 同步 Capacitor
+        run: pnpm exec cap sync android
+
+      # 把 pnpm icons 生成到 android-res/ 的图标与启动图复制进原生工程。
+      # 这一步不能省：styles.xml 引用了 @drawable/splash，
+      # 不复制过去 Gradle 会报 "resource drawable/splash not found"。
+      - name: 复制图标与启动图进原生工程
+        run: |
+          SRC=android-res
+          DST=android/app/src/main/res
+          test -d "$SRC" || { echo "android-res 不存在，pnpm icons 没跑成功"; exit 1; }
+          (cd "$SRC" && find . -type f) | while read -r f; do
+            mkdir -p "$DST/$(dirname "$f")"
+            cp "$SRC/$f" "$DST/$f"
+          done
+          ls "$DST/drawable/splash.png" && echo "splash.png 就位"
+
+      # Gradle 通过 local.properties 或 ANDROID_HOME 找 SDK。
+      # 显式写一份，避免依赖 runner 的环境变量命名差异。
+      - name: 指定 Android SDK 路径
+        run: |
+          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          echo "sdk.dir=$SDK" > android/local.properties
+          cat android/local.properties
+          echo "--- 已安装的 platform ---"
+          ls "$SDK/platforms" || true
+          echo "--- 已安装的 build-tools ---"
+          ls "$SDK/build-tools" || true
+
+      # 按 variables.gradle 声明的版本补齐 SDK 组件。
+      # runner 预装的未必含 compileSdk=34 / build-tools 34.0.0。
+      - name: 补齐 Android SDK 组件
+        run: |
+          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          SDKMGR=$(find "$SDK/cmdline-tools" -name sdkmanager -type f 2>/dev/null | head -1)
+          if [ -z "$SDKMGR" ]; then
+            echo "没找到 sdkmanager，跳过（若 Gradle 报缺组件再处理）"
+            exit 0
+          fi
+          yes | "$SDKMGR" --sdk_root="$SDK" "platforms;android-34" "build-tools;34.0.0" || true
+          ls "$SDK/platforms" || true
+          ls "$SDK/build-tools" || true
+
+      # 从 Windows 提交时 gradlew 容易丢失可执行权限（git 记成 100644），
+      # 在 Linux runner 上会以 exit 126 失败。
+      - name: 确保 gradlew 可执行
+        run: chmod +x android/gradlew
+
+      - name: 构建 debug APK
+        run: cd android && ./gradlew assembleDebug --no-daemon
+
+      - name: 构建 release APK
+        run: cd android && ./gradlew assembleRelease --no-daemon
+
+      - name: 收集产物
+        run: |
+          mkdir -p release-android
+          VERSION=$(node -p "require('./package.json').version")
+          cp android/app/build/outputs/apk/debug/app-debug.apk \
+             "release-android/人情账-${VERSION}-debug.apk" || true
+          if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then
+            cp android/app/build/outputs/apk/release/app-release.apk \
+               "release-android/人情账-${VERSION}-release.apk"
+          elif [ -f android/app/build/outputs/apk/release/app-release-unsigned.apk ]; then
+            cp android/app/build/outputs/apk/release/app-release-unsigned.apk \
+               "release-android/人情账-${VERSION}-release-unsigned.apk"
+          fi
+          ls -la release-android/
+
+      - name: 上传 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: release-android/*.apk
+          if-no-files-found: error
+          retention-days: 30

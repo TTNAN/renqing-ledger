@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  自适应图标的背景层颜色。
+  取自 app_icon 素材四角的颜色（#FCE0B0），
+  这样前景层缩放后，边缘与背景色自然衔接，看不出接缝。
+-->
+<resources>
+    <color name="ic_launcher_background">#FCE0B0</color>
+</resources>

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  人情账 · 备份规则
+
+  这个应用的账本存在 WebView 的 IndexedDB 里（应用私有目录）。
+  我们显式关掉 Android 自动备份，理由有两条：
+
+    1. 隐私：自动备份会把数据传到用户的 Google Drive。
+       本应用的产品承诺是「数据只在本机」，不该悄悄上云。
+    2. 一致性：WebView 的 IndexedDB 被部分备份后恢复，容易处于损坏状态。
+       用户应该用应用内的「导出备份」来迁移，那条路是可控且加密友好的。
+
+  所以这里是空规则：什么都不备份。
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+        <exclude domain="file" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+        <exclude domain="file" />
+    </device-transfer>
+</data-extraction-rules>

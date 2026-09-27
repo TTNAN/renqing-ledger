@@ -1,0 +1,70 @@
+name: 构建 Windows 安装包
+
+# 产出 RenqingLedger-Setup-<版本>.exe（NSIS 安装包）。
+#
+# 关于签名：本工作流不签名。
+#   未签名的安装包首次运行会被 Windows SmartScreen 拦截，
+#   用户需要点「更多信息 → 仍要运行」。README 里已说明。
+#   如果将来买了代码签名证书，在 electron-builder.yml 里配 certificateFile 即可。
+
+on:
+  push:
+    branches: ['**']
+    tags:
+      - 'v*'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    name: Windows NSIS
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # 顺序：先 setup-node，再 pnpm/action-setup。
+      # 反过来的话 setup-node 的 cache: pnpm 会执行 `pnpm store path`，
+      # 而那时 node 运行时还没装好，会直接失败。
+      # 也不做依赖缓存 —— 见 test.yml 的说明。
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: 生成图标
+        run: pnpm icons
+
+      - name: 单元测试
+        run: pnpm test
+
+      - name: 构建前端
+        run: pnpm build
+
+      - name: 打包免安装目录
+        run: node node_modules/electron-builder/out/cli/cli.js --win --x64 --dir
+
+      - name: 注入 exe 图标与版本信息
+        run: node scripts/patch-exe-icon.mjs
+        continue-on-error: true
+
+      - name: 打包 NSIS 安装包
+        run: node node_modules/electron-builder/out/cli/cli.js --win --x64
+
+      - name: 列出产物
+        run: Get-ChildItem release -Filter *.exe | Select-Object Name, Length
+        shell: pwsh
+
+      - name: 上传安装包
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: release/*.exe
+          if-no-files-found: error
+          retention-days: 30

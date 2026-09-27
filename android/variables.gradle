@@ -1,0 +1,29 @@
+// 人情账 · Android 构建变量
+//
+// 版本号与 package.json / electron-builder.yml 保持一致（三处一致）。
+ext {
+    // 需求指定 minSdk 24（Android 7.0）。
+    // Capacitor 6 默认 22，但 24 才能保证 WebView 版本足够新
+    // —— 应用锁用的 Argon2id + AES-GCM 依赖较新的 WebView。
+    minSdkVersion = 24
+
+    // 当前稳定版 targetSdk（34 = Android 14）。
+    compileSdkVersion = 34
+    targetSdkVersion = 34
+
+    androidxActivityVersion = '1.8.0'
+    androidxAppCompatVersion = '1.6.1'
+    androidxCoordinatorLayoutVersion = '1.2.0'
+    androidxCoreVersion = '1.12.0'
+    androidxFragmentVersion = '1.6.2'
+    coreSplashScreenVersion = '1.0.1'
+    androidxWebkitVersion = '1.9.0'
+    junitVersion = '4.13.2'
+    androidxJunitVersion = '1.1.5'
+    androidxEspressoCoreVersion = '3.5.1'
+    cordovaAndroidVersion = '10.1.1'
+
+    // 与 package.json 的 version 对齐
+    appVersionCode = 24
+    appVersionName = '0.3.0'
+}

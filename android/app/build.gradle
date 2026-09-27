@@ -1,0 +1,139 @@
+apply plugin: 'com.android.application'
+
+/**
+ * 人情账 · Android 应用模块
+ *
+ * 签名策略（重要）：
+ *   优先从环境变量读，其次从 keystore.properties 读，两者都没有就出未签名包。
+ *   jks 与密码绝不入库 —— 见 .gitignore 与 docs/android-signing.md。
+ */
+
+// ------------------------------------------------------------------ 签名配置
+
+def keystorePropsFile = rootProject.file('keystore.properties')
+def keystoreProps = new Properties()
+if (keystorePropsFile.exists()) {
+    keystoreProps.load(new FileInputStream(keystorePropsFile))
+}
+
+// 环境变量优先，方便 CI 注入 secrets
+def signStoreFile = System.getenv('RENQING_KEYSTORE') ?: keystoreProps['storeFile']
+def signStorePassword = System.getenv('RENQING_KEYSTORE_PASSWORD') ?: keystoreProps['storePassword']
+def signKeyAlias = System.getenv('RENQING_KEY_ALIAS') ?: keystoreProps['keyAlias']
+def signKeyPassword = System.getenv('RENQING_KEY_PASSWORD') ?: keystoreProps['keyPassword']
+
+def hasSigningConfig = signStoreFile != null && signStorePassword != null && signKeyAlias != null
+
+android {
+    namespace "com.renqingledger.app"
+    compileSdk rootProject.ext.compileSdkVersion
+
+    defaultConfig {
+        applicationId "com.renqingledger.app"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        // 与 package.json / electron-builder.yml 保持一致
+        versionCode rootProject.ext.appVersionCode
+        versionName rootProject.ext.appVersionName
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+        // 只打包中文与英文资源，减体积
+        resourceConfigurations += ['zh', 'en']
+
+        aaptOptions {
+            ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+
+    if (hasSigningConfig) {
+        signingConfigs {
+            release {
+                // storeFile 在 keystore.properties 里是相对 android/ 写的，
+                // 而 Gradle 的 file() 相对的是本模块目录（android/app/），
+                // 所以这里显式基于 rootProject 解析。
+                storeFile rootProject.file(signStoreFile)
+                storePassword signStorePassword
+                keyAlias signKeyAlias
+                keyPassword signKeyPassword
+                // 同时启用 v1/v2/v3，兼容老机器与新系统
+                enableV1Signing true
+                enableV2Signing true
+                enableV3Signing true
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            // 调试包加后缀，避免与正式包互相覆盖
+            applicationIdSuffix ".debug"
+            versionNameSuffix "-debug"
+            // 明确：不要清空 WebView 数据。
+            // （有些模板会在这里加 clearWebViewData，那会导致用户账本被清空。）
+            debuggable true
+        }
+        release {
+            minifyEnabled false
+            shrinkResources false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (hasSigningConfig) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    packagingOptions {
+        resources {
+            excludes += ['META-INF/*.kotlin_module']
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+// google-services 只在有配置文件时启用（本项目不需要推送，走不到这里）
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}
+
+// ------------------------------------------------------------------ 构建信息
+
+tasks.register('printSigningInfo') {
+    doLast {
+        if (hasSigningConfig) {
+            println "签名配置：已找到（storeFile=${signStoreFile}, alias=${signKeyAlias}）"
+        } else {
+            println "签名配置：未找到 —— release 包将是未签名的"
+            println "  请设置环境变量 RENQING_KEYSTORE / RENQING_KEYSTORE_PASSWORD / RENQING_KEY_ALIAS / RENQING_KEY_PASSWORD"
+            println "  或创建 android/keystore.properties（已在 .gitignore 中）"
+        }
+    }
+}

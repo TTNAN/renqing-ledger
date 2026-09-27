@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light" />
+    <meta name="description" content="人情账 · 本地往来礼金账本，数据只存在你自己电脑上" />
+    <meta name="theme-color" content="#FCE0B0" />
+
+    <!--
+      图标文件由 scripts/make-favicon.mjs 从 assets/icons/source/ 生成，
+      放在 public/ 下，Vite 会原样复制到 dist/。
+
+      用 app_icon 而不是 desktop_icon：前者主体大，
+      在 16×16 的标签页上也认得出；写实风那张缩到这么小会糊成一团。
+    -->
+    <link rel="icon" href="./favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16.png" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+
+    <title>人情账 · 本地礼金账本</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
