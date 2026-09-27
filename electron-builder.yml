@@ -1,0 +1,82 @@
+# Electron 打包配置
+#
+# 产出：Windows NSIS 安装包（可装到当前用户，不强制管理员）
+#
+# 注意：不要把用户数据打进包里。
+# 账本存在 %APPDATA%/RenqingLedger/，由主进程在运行时创建，
+# 这里只打包程序本体（dist 前端 + electron 主进程）。
+
+appId: com.renqingledger.app
+productName: 人情账
+# exe 文件名用英文，避免某些环境下中文路径出问题
+executableName: RenqingLedger
+copyright: MIT Licensed · 人情账 RenqingLedger
+
+# 显式指定 Electron 版本。
+# electron-builder 在 pnpm 的符号链接结构下探测不到已安装版本，写死最稳。
+# 升级 Electron 时这里与 package.json 一起改。
+electronVersion: 33.4.11
+
+directories:
+  output: release
+  buildResources: build
+
+# 只打这三样，node_modules 里只有 electron 自身需要（由 electron-builder 处理）
+files:
+  - dist/**/*
+  - electron/**/*
+  - package.json
+  - '!**/*.map'
+  - '!**/node_modules/**/{test,__tests__,tests,example,examples,docs}/**'
+
+# 主进程入口（package.json 里已有 main，这里再明确一次）
+extraMetadata:
+  main: electron/main.cjs
+
+# 明确不带任何用户数据
+extraResources: []
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: build/icon.ico
+  # 未签名：SmartScreen 会拦，README 里写了怎么继续
+  #
+  # 关于 signAndEditExecutable: false
+  # ---------------------------------
+  # 未配置证书时，electron-builder 仍会下载 winCodeSign 包去改 exe 的图标与版本信息。
+  # 那个包里含 macOS 的符号链接，非管理员 Windows 账户解压会失败（0xC0000135 那类问题）。
+  # 关掉它之后，图标与版本信息由 scripts/patch-exe-icon.mjs 在打包后补上，
+  # 效果一样，但不依赖那个包，也不需要管理员权限。
+  signAndEditExecutable: false
+  verifyUpdateCodeSignature: false
+  artifactName: RenqingLedger-Setup-${version}.${ext}
+
+nsis:
+  # 给用户选安装位置，不搞 oneClick
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  allowElevation: true
+
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: 人情账
+  menuCategory: false
+
+  # 卸载时默认不删账本，并弹窗询问（逻辑在 installer.nsh）
+  deleteAppDataOnUninstall: false
+  include: build/installer.nsh
+
+  # 中文安装界面
+  installerLanguages:
+    - zh_CN
+  language: '2052'
+  displayLanguageSelector: false
+
+  artifactName: RenqingLedger-Setup-${version}.${ext}
+
+# 不做自动更新（产品承诺：不联网、不强制检查更新）
+publish: null

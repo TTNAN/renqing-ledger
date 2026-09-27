@@ -1,0 +1,8 @@
+# pnpm 10+ 的构建脚本许可设置（package.json 里的 pnpm 字段已不再读取）。
+#
+# esbuild  —— 需要执行安装脚本来放置平台二进制，否则 Vite 无法启动
+# electron —— 需要执行 postinstall 下载 Electron 运行时二进制
+#             （走 ELECTRON_MIRROR 国内镜像，见 .npmrc）
+allowBuilds:
+  electron: true
+  esbuild: true

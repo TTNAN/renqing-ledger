@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  人情账 · Android 清单
+
+  隐私立场（重要）：
+    这个应用完全离线，账本永远不上传。
+
+    下面保留的 INTERNET 权限是 Capacitor WebView 桥接所需的（本地 https://localhost
+    方案下 WebView 与原生层通信要走网络栈）。它不用于上传账本 ——
+    应用代码里没有任何 fetch/XHR/WebSocket 请求远程地址，也不含统计 SDK。
+    如果你要自己审计，可以在开发者工具的 Network 面板确认：除了本地资源，没有任何外部请求。
+
+    如果想让系统层面彻底断网，可以把下面这行注释掉再重新打包。
+    代价是 Capacitor 的插件桥会失效（导出/导入文件用不了），所以默认保留。
+
+  权限清单（只有这一条）：
+    - INTERNET  ：见上，Capacitor 桥接
+    没有通讯录、相机、定位、存储读写等任何权限。
+    导出走 Documents 目录 + 系统分享，Android 10+ 分区存储下无需存储权限。
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="false"
+        android:hardwareAccelerated="true"
+        android:theme="@style/AppTheme">
+
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"
+            android:name=".MainActivity"
+            android:label="@string/title_activity_main"
+            android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:launchMode="singleTask"
+            android:exported="true"
+            android:screenOrientation="unspecified"
+            android:windowSoftInputMode="adjustResize">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+        </activity>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths"></meta-data>
+        </provider>
+    </application>
+
+    <!-- Capacitor WebView 桥接所需；不用于上传账本，详见文件头注释 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- 触屏设备；不限制平板，横屏也能用 -->
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+</manifest>

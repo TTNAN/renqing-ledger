@@ -1,0 +1,45 @@
+name: 测试
+
+# 跑单元测试与类型检查。
+# 任何 push / PR 都会跑，是最快出结果的那个。
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: 单测与类型检查
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 顺序：先 setup-node，再 pnpm/action-setup。
+      #
+      # 反过来的话 setup-node 的 cache: pnpm 会去执行 `pnpm store path`
+      # 定位缓存目录，而那时 node 运行时还没装好，这一步直接失败。
+      #
+      # 另外刻意不做依赖缓存：本项目 pnpm install 只要几秒，
+      # 缓存省下的时间有限，却要多引一个 action 与一份缓存键配置，
+      # 出问题的面反而更大（之前用 actions/cache 就在这一步挂过）。
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: 类型检查
+        run: pnpm typecheck
+
+      - name: 单元测试
+        run: pnpm test
+
+      - name: 构建前端
+        run: pnpm build
