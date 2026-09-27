@@ -227,9 +227,15 @@ export function suggestGiftAmount(input: SuggestInput): Suggestion {
 
   /* --- 8. 年份上浮（白事跳过） --- */
   if (!sombre && settings.uplift_percent > 0 && primarySource !== '') {
-    // 找一个参考日期：优先同类那条，否则最近一条
+    // 参考日期必须跟金额的真实来源一致：
+    // 净往来保底把 primary 覆盖成 lastReceive 后，年数也要按那一笔的年份算，
+    // 不能再按同类随出的日期算——否则依据里「距今 X 年」和金额的年份对不上。
     const refEntry =
-      sameTypeGive ?? (primarySource === 'last_receive' ? lastReceive : lastGive) ?? alive[0]!;
+      primarySource === 'net_receive_floor'
+        ? lastReceive
+        : (sameTypeGive ??
+          (primarySource === 'last_receive' ? lastReceive : lastGive)) ??
+        alive[0]!;
     const years = yearsBetween(refEntry.happened_on, now);
     if (years > 0) {
       const before = primary;
@@ -251,20 +257,16 @@ export function suggestGiftAmount(input: SuggestInput): Suggestion {
   primary = rounded;
 
   /* --- 10. 区间 --- */
+  const max = primary + step;
   let min = primary - step;
-  let max = primary + step;
 
   // 下限不能低于历史最低（除非用户显式允许）
   if (!settings.allow_below_history && historyMin > 0) {
     min = Math.max(min, floorToStep(historyMin, step) || historyMin);
   }
   min = Math.max(0, min);
-  max = Math.max(max, primary);
-
-  if (min === max) {
-    min = Math.max(0, primary - step);
-    max = primary + step;
-  }
+  // 注：min 不可能超过 max（下限至多被抬到 primary 附近），
+  // 所以不需要「区间被挤没时强行撑开」的逻辑——硬撑反而会打破上面的下限约束。
 
   /* --- 11. 依据收尾 --- */
   if (gives.length > 0 || receives.length > 0) {

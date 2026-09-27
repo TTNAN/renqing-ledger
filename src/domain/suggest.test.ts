@@ -379,4 +379,26 @@ describe('suggestGiftAmount', () => {
     expect(r.suggested_primary).toBe(60000);
     expect(r.basis.join('')).toContain('两边持平');
   });
+
+  it('15. 净往来保底 + 年份上浮：年数按金额的真实来源算', () => {
+    const entries = [
+      entry({ direction: 'give', amount_cents: 80000, happened_on: '2022-03-01', event_id: 'ev_wed' }),
+      entry({ direction: 'give', amount_cents: 10000, happened_on: '2021-05-01', event_id: 'ev_other' }),
+      entry({ direction: 'receive', amount_cents: 100000, happened_on: '2020-01-01', event_id: 'ev_home' }),
+    ];
+
+    const r = suggestGiftAmount({
+      entries,
+      targetType: '结婚',
+      eventTypeOf: typeMap({ ev_wed: '结婚', ev_other: '乔迁', ev_home: '满月' }),
+      direction: 'give',
+      settings: { ...S, uplift_percent: 10 },
+      now: '2026-06-01',
+    });
+
+    // 净往来对方多 1 万 → 保底取对方 2020 年随来的 1000；
+    // 上浮年数按这 1000 的真实年份算：2020→2026 共 6 年，1000×1.6=1600
+    expect(r.suggested_primary).toBe(160000);
+    expect(r.basis.join('')).toContain('距今 6 年');
+  });
 });
