@@ -576,9 +576,9 @@ remain free and MIT-licensed.
 <tr>
 <td align="center">
 
-**WeChat · 微信**
+**WeChat Reward · 微信赞赏码**
 
-<img src="docs/images/wechat.png" width="260" alt="WeChat QR">
+<img src="docs/images/wechat.png" width="260" alt="WeChat Reward QR">
 
 </td>
 </tr>
