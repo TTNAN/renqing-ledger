@@ -574,18 +574,11 @@ remain free and MIT-licensed.
 
 <table>
 <tr>
-<td align="center" width="50%">
+<td align="center">
 
 **WeChat · 微信**
 
 <img src="docs/images/wechat.png" width="260" alt="WeChat QR">
-
-</td>
-<td align="center" width="50%">
-
-**Alipay · 支付宝**
-
-<img src="docs/images/alipay.png" width="260" alt="Alipay QR">
 
 </td>
 </tr>

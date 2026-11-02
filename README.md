@@ -533,18 +533,11 @@ PDF 是手写的（为了不引 jsPDF 那 300 KB 依赖），结构错一个字�
 
 <table>
 <tr>
-<td align="center" width="50%">
+<td align="center">
 
 **微信**
 
 <img src="docs/images/wechat.png" width="260" alt="微信收款码">
-
-</td>
-<td align="center" width="50%">
-
-**支付宝**
-
-<img src="docs/images/alipay.png" width="260" alt="支付宝收款码">
 
 </td>
 </tr>
